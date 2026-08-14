@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+:root {
+  --background: #070b16;
+  --foreground: #e8edf7;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/*
+ * Grid cell states. Plain CSS rather than Tailwind utilities because the
+ * animation layer adds these imperatively, outside React's render cycle, and
+ * needs class names it can rely on verbatim.
+ */
+.node {
+  border-right: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  background-color: transparent;
+  outline: none;
+}
+
+.node-wall {
+  background-color: #334155;
+  animation: wall-pop 220ms cubic-bezier(0.2, 0.8, 0.3, 1.1) forwards;
+}
+
+.node-visited {
+  animation: visited-pop 480ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+.node-path {
+  animation: path-pop 380ms cubic-bezier(0.2, 0.8, 0.3, 1.2) forwards;
+}
+
+/* Start and finish sit above the search animation so they stay readable. */
+.node-start,
+.node-finish {
+  position: relative;
+  z-index: 2;
+}
+
+.node-start {
+  background-color: #22c55e;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.node-finish {
+  background-color: #ef4444;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+@keyframes wall-pop {
+  0% {
+    transform: scale(0.4);
+    background-color: #64748b;
+  }
+  100% {
+    transform: scale(1);
+    background-color: #334155;
+  }
+}
+
+@keyframes visited-pop {
+  0% {
+    transform: scale(0.35);
+    border-radius: 50%;
+    background-color: #7c3aed;
+  }
+  50% {
+    transform: scale(1.15);
+    border-radius: 25%;
+    background-color: #0891b2;
+  }
+  100% {
+    transform: scale(1);
+    border-radius: 0;
+    background-color: rgba(6, 182, 212, 0.42);
+  }
+}
+
+@keyframes path-pop {
+  0% {
+    transform: scale(0.5);
+    background-color: #fde68a;
+  }
+  60% {
+    transform: scale(1.2);
+    background-color: #fbbf24;
+  }
+  100% {
+    transform: scale(1);
+    background-color: #f59e0b;
+  }
+}
+
+/* Same information, minus a few hundred scaling cells. */
+@media (prefers-reduced-motion: reduce) {
+  .node-wall,
+  .node-visited,
+  .node-path {
+    animation: none;
+  }
+  .node-wall {
+    background-color: #334155;
+  }
+  .node-visited {
+    background-color: rgba(6, 182, 212, 0.42);
+  }
+  .node-path {
+    background-color: #f59e0b;
+  }
+}
