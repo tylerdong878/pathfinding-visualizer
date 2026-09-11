@@ -12,10 +12,14 @@ import {
   runSearch,
 } from "@/lib/algorithms";
 
-/** Milliseconds between each explored cell lighting up. */
+/** Slowest the reveal ever goes: milliseconds between each explored cell. */
 const VISIT_INTERVAL_MS = 12;
-/** Milliseconds between each final-path cell lighting up. */
+/** Slowest the reveal ever goes: milliseconds between each route cell. */
 const PATH_INTERVAL_MS = 32;
+/** Ceiling on the whole search replay, however many cells were checked. */
+const MAX_SEARCH_MS = 2600;
+/** Ceiling on the route reveal. */
+const MAX_PATH_MS = 1200;
 
 interface RunStats {
   explored: number;
@@ -101,7 +105,10 @@ export default function PathVisualizer() {
   const [start, setStart] = useState<Coord>({ row: 0, col: 0 });
   const [finish, setFinish] = useState<Coord>({ row: 0, col: 0 });
 
-  const [algorithm, setAlgorithm] = useState<AlgorithmKey>("astar");
+  // Breadth-first runs first by default. On a clear board it is by far the better
+  // show, and it matches the order the argument is made in: the naive search
+  // first, then the guided one as the payoff.
+  const [algorithm, setAlgorithm] = useState<AlgorithmKey>("bfs");
   const [isAnimating, setIsAnimating] = useState(false);
   const [runId, setRunId] = useState(0);
   const [results, setResults] = useState<Partial<Record<AlgorithmKey, RunStats>>>({});
@@ -126,20 +133,12 @@ export default function PathVisualizer() {
    */
   const buildBoard = useCallback((next: Dimensions) => {
     const endpoints = defaultEndpoints(next);
-    const board = createGrid(next.rows, next.cols, endpoints.start, endpoints.finish);
-
-    // Start with obstacles already scattered. On a clear board A* walks straight
-    // to the target and there is nothing to watch, which sells the idea short.
-    const walls = generateSolvableWalls(next.rows, next.cols, endpoints.start, endpoints.finish);
-    for (let row = 0; row < next.rows; row++) {
-      for (let col = 0; col < next.cols; col++) board[row][col].isWall = walls[row][col];
-    }
 
     dimensionsRef.current = next;
     setDimensions(next);
     setStart(endpoints.start);
     setFinish(endpoints.finish);
-    setGrid(board);
+    setGrid(createGrid(next.rows, next.cols, endpoints.start, endpoints.finish));
     setResults({});
     setRunId((id) => id + 1);
   }, []);
@@ -209,6 +208,15 @@ export default function PathVisualizer() {
    */
   const animate = useCallback(
     (visitedNodes: GridNode[], pathNodes: GridNode[]) => {
+      // Breadth-first on a clear board floods the whole grid, so a fixed
+      // per-cell delay would run for the better part of ten seconds. Speed the
+      // reveal up as the queue gets longer to keep the run watchable.
+      const visitStep = Math.min(
+        VISIT_INTERVAL_MS,
+        MAX_SEARCH_MS / Math.max(1, visitedNodes.length),
+      );
+      const pathStep = Math.min(PATH_INTERVAL_MS, MAX_PATH_MS / Math.max(1, pathNodes.length));
+
       let startTimestamp: number | null = null;
       let visitedIndex = 0;
       let pathIndex = 0;
@@ -217,18 +225,15 @@ export default function PathVisualizer() {
         if (startTimestamp === null) startTimestamp = timestamp;
         const elapsed = timestamp - startTimestamp;
 
-        const visitedTarget = Math.min(
-          visitedNodes.length,
-          Math.floor(elapsed / VISIT_INTERVAL_MS),
-        );
+        const visitedTarget = Math.min(visitedNodes.length, Math.floor(elapsed / visitStep));
         while (visitedIndex < visitedTarget) {
           paintNode(visitedNodes[visitedIndex], "node-visited");
           visitedIndex++;
         }
 
         if (visitedIndex >= visitedNodes.length) {
-          const pathElapsed = elapsed - visitedNodes.length * VISIT_INTERVAL_MS;
-          const pathTarget = Math.min(pathNodes.length, Math.floor(pathElapsed / PATH_INTERVAL_MS));
+          const pathElapsed = elapsed - visitedNodes.length * visitStep;
+          const pathTarget = Math.min(pathNodes.length, Math.floor(pathElapsed / pathStep));
           while (pathIndex < pathTarget) {
             paintNode(pathNodes[pathIndex], "node-path");
             pathIndex++;
